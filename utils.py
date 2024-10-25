@@ -16,13 +16,16 @@ logger = logging.getLogger(__name__)
 class HtmlResponse:
     """Response from get_title()."""
 
-    content = None
     url = None
     title = None
+    content = None
 
     def __init__(self, url: str, content: str):
         self.url = url
         self.content = content
+
+    def __str__(self):
+        return f"url = {self.url}; title = {self.title}"
 
     def encode(self):
         """Encode URL and title."""
@@ -124,6 +127,8 @@ class Utils:
     def get_title(self, url: str) -> HtmlResponse:
         """Get title element from HTML."""
 
+        html_response = None
+
         try:
             html_response = self.get_html(url)
 
@@ -137,7 +142,16 @@ class Utils:
                 logger.debug("title = %s", title)
             else:
                 title = url
-        except Exception:
+        except (requests.exceptions.ReadTimeout, requests.exceptions.HTTPError) as ex:
+            logger.error("Error retrieving HTML: %s", ex)
+
+            if html_response is None:
+                html_response = HtmlResponse(url, "")
+
+            title = url
+        except ImportError as ex:
+            logger.error("Error parsing HTML: %s", ex)
+
             if html_response is None:
                 html_response = HtmlResponse(url, "")
 

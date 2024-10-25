@@ -18,5 +18,23 @@ headers:
     value: max-age=0
   - name: Referer
     value: https://www.google.com/
+  - name: Sec-Fetch-Dest
+    value: document
+  - name: Sec-Fetch-Mode
+    value: navigate
+  - name: Sec-Fetch-Site
+    value: none
+  - name: Sec-Fetch-User
+    value: "?1"
+  - name: Sec-GPC
+    value: "1"
+  - name: Upgrade-Insecure-Requests
+    value: "1"
   - name: User-Agent
     value: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36
+  - name: sec-ch-ua
+    value: '"Chromium";v="130", "Brave";v="130", "Not?A_Brand";v="99"'
+  - name: sec-ch-ua-mobile
+    value: "?0"
+  - name: sec-ch-ua-platform
+    value: "macOS"
