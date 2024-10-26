@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
-class HtmlResponse:
+class BookmarkHtml:
     """Response from get_title()."""
 
     url = None
@@ -26,6 +26,10 @@ class HtmlResponse:
 
     def __str__(self):
         return f"url = {self.url}; title = {self.title}"
+
+    def html(self) -> str:
+        """Return HTML representation of bookmark."""
+        return f'<DT><A HREF="{self.url}">{self.title}</A>'
 
     def encode(self):
         """Encode URL and title."""
@@ -47,10 +51,13 @@ class Utils:
     rewrite_url = True
 
     def __init__(self, config_file):
-        logger.debug("Opening %s", config_file)
-
         with open(config_file, "r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
+
+        logging.basicConfig(
+            filename=self.get_config("log_file", "bookmark.log"),
+            level=self.get_config("log_level", logging.DEBUG),
+        )
 
         logger.debug("config = %s", self.config)
 
@@ -88,9 +95,11 @@ class Utils:
 
             f.close()
 
+        logging.debug("urls = %s", urls)
+
         return urls
 
-    def write_bookmarks(self, content: str):
+    def write_bookmarks(self, bookmarks: list[any]):
         """Write list to bookmarks HTML file."""
 
         bookmarks_file = self.get_config("bookmarks_html_file", "bookmarks.html")
@@ -98,11 +107,15 @@ class Utils:
         logging.debug("Writing '%s'", bookmarks_file)
 
         with open(bookmarks_file, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(self.get_config("html_front_matter"))
+
+            f.writelines(bookmarks)
+
+            f.write(self.get_config("html_end_matter"))
 
             f.close()
 
-    def get_html(self, url: str) -> HtmlResponse:
+    def get_html(self, url: str) -> BookmarkHtml:
         """Get HTML for a given URL."""
 
         with requests.Session() as s:
@@ -122,10 +135,12 @@ class Utils:
 
             response.raise_for_status()
 
-        return HtmlResponse(url, response.content)
+        return BookmarkHtml(url, response.content)
 
-    def get_title(self, url: str) -> HtmlResponse:
-        """Get title element from HTML."""
+    def get_bookmark_info(self, url: str) -> BookmarkHtml:
+        """Get bookmark details from HTML."""
+
+        logger.debug("Retrieving title for '%s'.", url)
 
         html_response = None
 
@@ -146,18 +161,20 @@ class Utils:
             logger.error("Error retrieving HTML: %s", ex)
 
             if html_response is None:
-                html_response = HtmlResponse(url, "")
+                html_response = BookmarkHtml(url, "")
 
             title = url
         except ImportError as ex:
             logger.error("Error parsing HTML: %s", ex)
 
             if html_response is None:
-                html_response = HtmlResponse(url, "")
+                html_response = BookmarkHtml(url, "")
 
             title = url
 
         html_response.title = title
+
+        self.sleep()
 
         html_response.encode()
 
