@@ -15,12 +15,13 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
-class BookmarkHtml:
-    """Response from get_title()."""
+class BookmarkInfo:
+    """Information about a bookmark."""
 
     url = None
     title = None
     content = None
+    favicon = None
 
     def __init__(self, url: str, content: str):
         self.url = url
@@ -31,62 +32,84 @@ class BookmarkHtml:
 
     def html(self) -> str:
         """Return HTML representation of bookmark."""
+
+        # TODO: Include favicon.
+
         return f'<DT><A HREF="{self.url}">{self.title}</A>'
 
     def encode(self):
         """Encode URL and title."""
 
+        # TODO: Encode favicon.
+
         self.url = urllib.parse.quote(self.url)
         self.title = html.escape(self.title)
 
 
-class Utils:
-    """Utility methods for creating bookmarks HTML."""
+class Config:
+    """Manage configuration."""
 
-    config = None
-    sleep_duration = 0
-    random_sleep = True
-    default_headers = None
-    request_timeout = 60
-    rewrite_url = True
+    values = None
 
-    def __init__(self, config_file):
-        with open(config_file, "r", encoding="utf-8") as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self, file):
+        with open(file, "r", encoding="utf-8") as f:
+            self.values = yaml.safe_load(f)
 
-        logging.basicConfig(
-            filename=self.get_config("log_file", "bookmark.log"),
-            level=self.get_config("log_level", logging.DEBUG),
-        )
+            f.close()
 
-        logger.debug("config = %s", self.config)
-
-        self.sleep_duration = int(self.get_config("sleep", 0))
-        self.random_sleep = bool(self.get_config("random_sleep", True))
-
-        self.default_headers = {
-            h["name"]: h["value"] for h in self.get_config("headers")
-        }
-
-        self.request_timeout = int(self.get_config("timeout", 60))
-
-        self.rewrite_url = bool(self.get_config("rewrite_url", True))
-
-    def get_config(self, key: str, default: any = "") -> any:
+    def get(self, key: str, default: any = "") -> any:
         """Get configuration value for key."""
 
-        if self.config is not None:
-            value = self.config[key]
+        value = None
+
+        if self.values is not None:
+            value = self.values[key]
 
         if value is None:
             value = default
 
         return value
 
+
+class Utils:
+    """Utility methods for creating bookmarks HTML."""
+
+    config = None
+
+    sleep_duration = 0
+    random_sleep = True
+    default_headers = None
+    request_timeout = 60
+    rewrite_url = True
+    read_favicon = False
+
+    def __init__(self, config_file):
+        self.config = Config(config_file)
+
+        logging.basicConfig(
+            filename=self.config.get("log_file", "bookmark.log"),
+            level=self.config.get("log_level", logging.DEBUG),
+        )
+
+        logger.debug("config = %s", self.config)
+
+        self.sleep_duration = int(self.config.get("sleep", 0))
+        self.random_sleep = bool(self.config.get("random_sleep", True))
+
+        self.default_headers = {
+            header["name"]: header["value"] for header in self.config.get("headers")
+        }
+
+        self.request_timeout = int(self.config.get("timeout", 60))
+
+        self.rewrite_url = bool(self.config.get("rewrite_url", True))
+
+        self.read_favicon = bool(self.config.get("favicon", False))
+
     def get_urls(self) -> list[str]:
         """Get list of URLs from file."""
 
-        urls_file = self.get_config("urls_file", "urls.txt")
+        urls_file = self.config.get("urls_file", "urls.txt")
 
         logging.debug("Opening '%s'", urls_file)
 
@@ -102,20 +125,20 @@ class Utils:
     def write_bookmarks(self, bookmarks: list[any]):
         """Write list to bookmarks HTML file."""
 
-        bookmarks_file = self.get_config("bookmarks_html_file", "bookmarks.html")
+        bookmarks_file = self.config.get("bookmarks_html_file", "bookmarks.html")
 
         logging.debug("Writing '%s'", bookmarks_file)
 
         with open(bookmarks_file, "w", encoding="utf-8") as f:
-            f.write(self.get_config("html_front_matter"))
+            f.write(self.config.get("html_front_matter"))
 
             f.writelines(bookmarks)
 
-            f.write(self.get_config("html_end_matter"))
+            f.write(self.config.get("html_end_matter"))
 
             f.close()
 
-    def get_html(self, url: str) -> BookmarkHtml:
+    def get_html(self, url: str) -> BookmarkInfo:
         """Get HTML for a given URL."""
 
         with requests.Session() as s:
@@ -135,9 +158,9 @@ class Utils:
 
             response.raise_for_status()
 
-        return BookmarkHtml(url, response.content)
+        return BookmarkInfo(url, response.content)
 
-    def get_bookmark_info(self, url: str) -> BookmarkHtml:
+    def get_bookmark_info(self, url: str) -> BookmarkInfo:
         """Get bookmark details from HTML."""
 
         logger.debug("Retrieving title for '%s'.", url)
@@ -157,18 +180,20 @@ class Utils:
                 logger.debug("title = %s", title)
             else:
                 title = url
+
+            # TODO: Get favicon.
         except (requests.exceptions.ReadTimeout, requests.exceptions.HTTPError) as ex:
             logger.error("Error retrieving HTML: %s", ex)
 
             if html_response is None:
-                html_response = BookmarkHtml(url, "")
+                html_response = BookmarkInfo(url, "")
 
             title = url
         except ImportError as ex:
             logger.error("Error parsing HTML: %s", ex)
 
             if html_response is None:
-                html_response = BookmarkHtml(url, "")
+                html_response = BookmarkInfo(url, "")
 
             title = url
 
