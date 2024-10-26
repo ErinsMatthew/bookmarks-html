@@ -1,8 +1,10 @@
 """Utility class for creating bookmarks.html from a list of URLs."""
 
+import html
 import logging
 import random
 import time
+import urllib
 
 import requests
 import yaml
@@ -34,10 +36,8 @@ class BookmarkHtml:
     def encode(self):
         """Encode URL and title."""
 
-        # TODO: URL encode url
-        # TODO: HTML encode title
-
-        pass
+        self.url = urllib.parse.quote(self.url)
+        self.title = html.escape(self.title)
 
 
 class Utils:
