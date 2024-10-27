@@ -7,7 +7,7 @@ timeout: 60
 log_file: bookmark.log
 log_level: DEBUG
 rewrite_url: true
-favicon: true
+favicon: false
 sleep: 3000
 random_sleep: true
 headers:
