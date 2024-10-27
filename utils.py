@@ -1,15 +1,16 @@
 """Utility class for creating bookmarks.html from a list of URLs."""
 
-import html
+import base64
 import logging
+import mimetypes
 import random
 import time
-import urllib
 
 import requests
 import yaml
 
 from bs4 import BeautifulSoup
+from dominate.tags import a, dt
 
 
 logger = logging.getLogger(__name__)
@@ -33,17 +34,19 @@ class BookmarkInfo:
     def html(self) -> str:
         """Return HTML representation of bookmark."""
 
-        # TODO: Include favicon.
+        _dt = dt()
+        _a = a(self.title, href=self.url)
 
-        return f'<DT><A HREF="{self.url}">{self.title}</A>'
+        if self.favicon is not None:
+            _a["icon"] = self.favicon
 
-    def encode(self):
-        """Encode URL and title."""
+        _dt.add(_a)
 
-        # TODO: Encode favicon.
+        bookmark_html = _dt.render(pretty=False)
 
-        self.url = urllib.parse.quote(self.url)
-        self.title = html.escape(self.title)
+        logger.debug("bookmark_html = %s", bookmark_html)
+
+        return bookmark_html
 
 
 class Config:
@@ -138,8 +141,8 @@ class Utils:
 
             f.close()
 
-    def get_html(self, url: str) -> BookmarkInfo:
-        """Get HTML for a given URL."""
+    def get_contents(self, url: str) -> requests.Response:
+        """Get binary contents of file from URL."""
 
         with requests.Session() as s:
             response = s.get(
@@ -150,60 +153,138 @@ class Utils:
 
             logger.debug("response = %s", response.headers)
 
-            # update response URL if redirected
-            if url != response.url and self.rewrite_url:
-                logger.debug("Rewriting URL from '%s' to '%s'.", url, response.url)
-
-                url = response.url
-
             response.raise_for_status()
+
+        return response
+
+    def get_html(self, url: str) -> BookmarkInfo:
+        """Get HTML for a given URL."""
+
+        response = self.get_contents(url)
+
+        # update response URL if redirected
+        if url != response.url and self.rewrite_url:
+            logger.debug("Rewriting URL from '%s' to '%s'.", url, response.url)
+
+            url = response.url
 
         return BookmarkInfo(url, response.content)
 
+    def determine_mime_type(self, favicon_url: str) -> str:
+        """Determine MIME type from URL."""
+
+        # try based on file name
+        mime_type = mimetypes.guess_type(favicon_url)
+
+        if len(mime_type) != 2:
+            mime_type = None
+        else:
+            mime_type = str(mime_type[0])
+
+        return mime_type
+
+    def use_this_favicon(self, icon) -> bool:
+        """Determine whether to use this favicon or not."""
+
+        # TODO: Determine if we should use this one or not.
+        # If there are multiple <link rel="icon">s, the browser uses their media, type, and sizes attributes to select the most appropriate icon. If several icons are equally appropriate, the last one is used.
+        # favicon_url = icon.get("href")
+        # favicon_type = icon.get("type")
+        # favicon_sizes = icon.get("sizes")
+
+        return True
+
+    def parse_favicon_data(self, soup: BeautifulSoup) -> str:
+        """Get favicon data from links in page HTML."""
+
+        favicon_links = soup.find_all("link", rel="icon")
+
+        logger.debug("favicon_links = %s", favicon_links)
+
+        favicon_data = None
+
+        if favicon_links is not None:
+            for icon in favicon_links:
+                if not self.use_this_favicon(icon):
+                    continue
+
+                favicon_url = icon.get("href")
+                favicon_type = icon.get("type")
+
+                if favicon_type is not None:
+                    mime_type = favicon_type
+                else:
+                    mime_type = self.determine_mime_type(favicon_url)
+
+                logger.debug("mime_type = %s", mime_type)
+
+                favicon_contents = self.get_contents(favicon_url)
+
+                if favicon_contents is not None:
+                    encoded_bytes = base64.b64encode(favicon_contents.content)
+
+                    encoded_data = encoded_bytes.decode("utf-8")
+
+                    # data:<mime-type>;base64,<base64-encoded-data>
+                    favicon_data = f"data:{mime_type};base64,{encoded_data}"
+
+                # stop loop once we processed one; refactor this!
+                break
+
+        return favicon_data
+
+    def parse_title(self, soup: BeautifulSoup, url: str) -> str:
+        """Parse title information from HTML."""
+
+        title = soup.select_one("title")
+
+        if title is not None:
+            title = title.string.strip()
+
+            logger.debug("title = %s", title)
+        else:
+            title = url
+
+        return str(title)
+
     def get_bookmark_info(self, url: str) -> BookmarkInfo:
-        """Get bookmark details from HTML."""
+        """Get bookmark info from HTML."""
 
-        logger.debug("Retrieving title for '%s'.", url)
+        logger.debug("Retrieving info for '%s'.", url)
 
-        html_response = None
+        bookmark_info = None
+        favicon_data = None
 
         try:
-            html_response = self.get_html(url)
+            bookmark_info = self.get_html(url)
 
-            soup = BeautifulSoup(html_response.content, "html.parser")
+            soup = BeautifulSoup(bookmark_info.content, "html.parser")
 
-            title = soup.select_one("title")
+            title = self.parse_title(soup, url)
 
-            if title is not None:
-                title = title.string.strip()
-
-                logger.debug("title = %s", title)
-            else:
-                title = url
-
-            # TODO: Get favicon.
+            if self.read_favicon:
+                favicon_data = self.parse_favicon_data(soup)
         except (requests.exceptions.ReadTimeout, requests.exceptions.HTTPError) as ex:
             logger.error("Error retrieving HTML: %s", ex)
 
-            if html_response is None:
-                html_response = BookmarkInfo(url, "")
+            if bookmark_info is None:
+                bookmark_info = BookmarkInfo(url, "")
 
             title = url
         except ImportError as ex:
             logger.error("Error parsing HTML: %s", ex)
 
-            if html_response is None:
-                html_response = BookmarkInfo(url, "")
+            if bookmark_info is None:
+                bookmark_info = BookmarkInfo(url, "")
 
             title = url
 
-        html_response.title = title
+        bookmark_info.title = title
+        bookmark_info.favicon = favicon_data
 
         self.sleep()
 
-        html_response.encode()
-
-        return html_response
+        return bookmark_info
 
     def sleep(self):
         """Sleep for configured number of milliseconds."""
