@@ -1,5 +1,7 @@
 ---
 urls_file: urls.txt
+# folder_separator: "|"
+# subfolder_separator: ","
 bookmarks_html_file: bookmarks.html
 timeout: 60
 log_file: bookmark.log
