@@ -112,6 +112,8 @@ class Utils:
 
         logging.basicConfig(
             filename=self.config.get("log_file", "bookmark.log"),
+            encoding="utf-8",
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             level=self.config.get("log_level", logging.DEBUG),
         )
 
@@ -295,6 +297,8 @@ class Utils:
             folders = str(items[0]).split(self.subfolder_separator)
 
             url = items[1]
+
+        logger.debug("folders('%s') = %s", url, folders)
 
         return folders, url
 
