@@ -1,12 +1,13 @@
 ---
 urls_file: urls.txt
-# folder_separator: "|"
-# subfolder_separator: ","
+folder_separator: "|"
+subfolder_separator: ","
 bookmarks_html_file: bookmarks.html
 timeout: 60
 log_file: bookmark.log
 log_level: DEBUG
 rewrite_url: true
+sort: true
 favicon: false
 sleep: 3000
 random_sleep: true

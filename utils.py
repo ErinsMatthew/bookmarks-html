@@ -23,6 +23,7 @@ class BookmarkInfo:
     title = None
     content = None
     favicon = None
+    folders = None
 
     def __init__(self, url: str, content: str):
         self.url = url
@@ -30,6 +31,24 @@ class BookmarkInfo:
 
     def __str__(self):
         return f"url = {self.url}; title = {self.title}"
+
+    def __lt__(self, other):
+        return self.folders < other.folders and self.url < other.url
+
+    def __le__(self, other):
+        return self.folders <= other.folders and self.url <= other.url
+
+    def __eq__(self, other):
+        return self.folders == other.folders and self.url == other.url
+
+    def __ne__(self, other):
+        return self.folders != other.folders and self.url != other.url
+
+    def __gt__(self, other):
+        return self.folders > other.folders and self.url > other.url
+
+    def __ge__(self, other):
+        return self.folders >= other.folders and self.url >= other.url
 
     def html(self) -> str:
         """Return HTML representation of bookmark."""
@@ -85,6 +104,8 @@ class Utils:
     request_timeout = 60
     rewrite_url = True
     read_favicon = False
+    folder_separator = None
+    subfolder_separator = None
 
     def __init__(self, config_file):
         self.config = Config(config_file)
@@ -95,6 +116,9 @@ class Utils:
         )
 
         logger.debug("config = %s", self.config)
+
+        self.folder_separator = self.config.get("folder_separator", "|")
+        self.subfolder_separator = self.config.get("subfolder_separator", ",")
 
         self.sleep_duration = int(self.config.get("sleep", 0))
         self.random_sleep = bool(self.config.get("random_sleep", True))
@@ -125,8 +149,18 @@ class Utils:
 
         return urls
 
-    def write_bookmarks(self, bookmarks: list[any]):
+    def write_bookmarks(self, bookmarks: list[BookmarkInfo]):
         """Write list to bookmarks HTML file."""
+
+        if self.config.get("sort", False):
+            bookmarks.sort()
+
+        bookmark_lines = []
+
+        for bookmark in bookmarks:
+            # TODO: Append folder information.
+
+            bookmark_lines.append(bookmark.html())
 
         bookmarks_file = self.config.get("bookmarks_html_file", "bookmarks.html")
 
@@ -135,7 +169,7 @@ class Utils:
         with open(bookmarks_file, "w", encoding="utf-8") as f:
             f.write(self.config.get("html_front_matter"))
 
-            f.writelines(bookmarks)
+            f.writelines(bookmark_lines)
 
             f.write(self.config.get("html_end_matter"))
 
@@ -247,13 +281,32 @@ class Utils:
 
         return str(title)
 
-    def get_bookmark_info(self, url: str) -> BookmarkInfo:
+    def get_folders(self, line: str) -> tuple[list[str], str]:
+        """Parse folders and URL from line."""
+
+        folders = []
+        url = line
+
+        # split on folder_separator
+        items = line.split(self.folder_separator)
+
+        if len(items) > 1:
+            # sub-split on subfolder_separator
+            folders = str(items[0]).split(self.subfolder_separator)
+
+            url = items[1]
+
+        return folders, url
+
+    def get_bookmark_info(self, line: str) -> BookmarkInfo:
         """Get bookmark info from HTML."""
 
-        logger.debug("Retrieving info for '%s'.", url)
+        logger.debug("Retrieving info for '%s'.", line)
 
         bookmark_info = None
         favicon_data = None
+
+        folders, url = self.get_folders(line)
 
         try:
             bookmark_info = self.get_html(url)
@@ -281,6 +334,7 @@ class Utils:
 
         bookmark_info.title = title
         bookmark_info.favicon = favicon_data
+        bookmark_info.folders = folders
 
         self.sleep()
 
