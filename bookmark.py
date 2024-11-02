@@ -14,9 +14,10 @@ def main() -> int:
     try:
         utils = Utils("config.yml")
 
-        urls = utils.get_urls()
+        # read list of URLs in Folder,Subfolder...|URL format
+        lines = utils.get_urls()
 
-        utils.write_bookmarks([utils.get_bookmark_info(url).html() for url in urls])
+        utils.write_bookmarks([utils.get_bookmark_info(line) for line in lines])
     except Exception as ex:
         logger.error("Error Somewhere: %s", ex)
 
