@@ -321,9 +321,10 @@ class Utils:
 
             if self.read_favicon:
                 favicon_data = self.parse_favicon_data(soup)
-        except (requests.exceptions.ReadTimeout, requests.exceptions.HTTPError) as ex:
+        except requests.exceptions.RequestException as ex:
             logger.error("Error retrieving HTML: %s", ex)
 
+            # use URL as title and keep going
             if bookmark_info is None:
                 bookmark_info = BookmarkInfo(url, "")
 
