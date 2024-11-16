@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import traceback
 
 from utils import Utils
 
@@ -19,9 +20,9 @@ def main() -> int:
 
         utils.write_bookmarks([utils.get_bookmark_info(line) for line in lines])
     except Exception as ex:
-        logger.error("Error Somewhere: %s", ex)
+        logger.error("Error:", exc_info=True)
 
-        sys.stderr.write(f"Error Somewhere: {ex}\n")
+        traceback.print_exception(ex, file=sys.stderr)
 
         return -1
 
