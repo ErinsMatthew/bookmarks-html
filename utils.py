@@ -151,18 +151,104 @@ class Utils:
 
         return urls
 
+    def nested_set(self, dic, keys, value, create_missing=True):
+        """Set value to deeply nested dict.
+
+        Based on <https://stackoverflow.com/a/49290758/2647496>"""
+
+        d = dic
+
+        for key in keys[:-1]:
+            if key in d:
+                d = d[key]
+            elif create_missing:
+                d = d.setdefault(key, {})
+            else:
+                return dic
+
+        if keys[-1] in d or create_missing:
+            d[keys[-1]] = value
+
+        return dic
+
+    def nested_append(self, dic, keys, value, create_missing=True):
+        """Append value to deeply nested dict.
+
+        Based on <https://stackoverflow.com/a/49290758/2647496>"""
+
+        d = dic
+
+        for key in keys[:-1]:
+            if key in d:
+                d = d[key]
+            elif create_missing:
+                d = d.setdefault(key, {})
+            else:
+                return dic
+
+        # BUG: Unknown.
+        #           File "/Users/doof/Code/bookmarks-html/utils.py", line 189, in nested_append
+        #     if keys[-1] in d or create_missing:
+        #        ^^^^^^^^^^^^^
+        #   File "/Users/doof/Code/bookmarks-html/utils.py", line 42, in __eq__
+        #     return self.folders == other.folders and self.url == other.url
+        if keys[-1] in d or create_missing:
+            d[keys[-1]].append(value)
+
+        return dic
+
+    def build_bookmarks_dict(
+        self, bookmarks: list[BookmarkInfo]
+    ) -> dict[str, list[BookmarkInfo]]:
+        """Create nested dictionary of bookmarks by folder.
+
+        bookmarks_dict['Folder']['Subfolder'][...] = [ Bookmark1, ..., BookmarkN ]
+        """
+
+        root_key = self.config.get("root_key", "/")
+
+        bookmarks_dict = {root_key: []}
+
+        for bookmark_info in bookmarks:
+            folders = bookmark_info.folders
+
+            logger.debug("folders = %s", folders)
+
+            if folders is not None and isinstance(folders, list) and len(folders) > 0:
+                parent_folder = folders[0]
+
+                logger.debug("parent_folder = %s", parent_folder)
+
+                if parent_folder not in bookmarks_dict:
+                    self.nested_set(bookmarks_dict, folders, [])
+
+                self.nested_append(bookmarks_dict, folders, bookmark_info)
+            else:
+                bookmarks_dict[root_key].append(bookmark_info)
+
+        logger.debug("bookmarks_dict = %s", bookmarks_dict)
+
+        return bookmarks_dict
+
+    def build_bookmark_lines(self, bookmarks: list[BookmarkInfo]) -> list[str]:
+        """Build list of bookmark lines to output."""
+
+        bookmark_lines = []
+        bookmarks_dict = self.build_bookmarks_dict(bookmarks)
+
+        for key, bookmark_info_list in bookmarks_dict.items():
+            bookmark_lines.append(f"<DT><H3>{key}</H3>\n<DL><p>")
+
+            for bookmark in bookmark_info_list:
+                bookmark_lines.append(bookmark.html())
+
+        return bookmark_lines
+
     def write_bookmarks(self, bookmarks: list[BookmarkInfo]):
         """Write list to bookmarks HTML file."""
 
         if self.config.get("sort", False):
             bookmarks.sort()
-
-        bookmark_lines = []
-
-        for bookmark in bookmarks:
-            # TODO: Append folder information.
-
-            bookmark_lines.append(bookmark.html())
 
         bookmarks_file = self.config.get("bookmarks_html_file", "bookmarks.html")
 
@@ -171,7 +257,7 @@ class Utils:
         with open(bookmarks_file, "w", encoding="utf-8") as f:
             f.write(self.config.get("html_front_matter"))
 
-            f.writelines(bookmark_lines)
+            f.writelines(self.build_bookmark_lines(bookmarks))
 
             f.write(self.config.get("html_end_matter"))
 

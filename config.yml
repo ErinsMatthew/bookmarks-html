@@ -2,6 +2,7 @@
 urls_file: urls.txt
 folder_separator: "|"
 subfolder_separator: ","
+root_key: "/"
 bookmarks_html_file: bookmarks.html
 timeout: 60
 log_file: bookmark.log
@@ -51,4 +52,8 @@ html_front_matter: >
   <TITLE>Bookmarks</TITLE>
   <H1>Bookmarks</H1>
   <DL><p>
-html_end_matter: ""
+      <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Bookmarks</H3>
+      <DL><p>
+html_end_matter: >
+  </p></DL>
+  </p></DL>
