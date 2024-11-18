@@ -2,7 +2,8 @@
 urls_file: urls.txt
 folder_separator: "|"
 subfolder_separator: ","
-root_key: "/"
+bookmarks_key: bookmarks
+folders_key: folders
 bookmarks_html_file: bookmarks.html
 timeout: 60
 log_file: bookmark.log
@@ -56,4 +57,8 @@ html_front_matter: >
       <DL><p>
 html_end_matter: >
   </p></DL>
-  </p></DL>
+  </p></DL><p>
+start_folder_front_matter: "<DT><H3>"
+start_folder_end_matter: "</H3>\n<DL><p>"
+end_folder_front_matter: "</DL><p>"
+end_folder_end_matter: ""
