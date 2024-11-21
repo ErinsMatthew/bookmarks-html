@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from dominate import document
 from dominate.util import raw
-from dominate.tags import a, dt, dl, p, h1, h3, meta
+from dominate.tags import a, dt, dl, p, h1, html_tag, meta
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,10 @@ current_time_seconds = int(time.time())
 
 BOOKMARKS_KEY = "bookmarks"
 FOLDERS_KEY = "folders"
+
+
+class H3(html_tag):
+    """Address bug in Chromium where <h3> tag has to render in uppercase to import properly."""
 
 
 class BookmarkInfo:
@@ -62,11 +66,14 @@ class BookmarkInfo:
         """Return HTML representation of bookmark."""
 
         _dt = dt()
+
+        # BUG in Chromium: <a> tag has to render all on one line to import properly
         _a = a(
             self.title,
             href=self.url,
             ADD_DATE=current_time_seconds,
             LAST_MODIFIED=current_time_seconds,
+            __pretty=False,
         )
 
         if self.favicon is not None:
@@ -215,7 +222,7 @@ class Utils:
         folder_element = dt()
 
         folder_element.add(
-            h3(
+            H3(
                 folder,
                 ADD_DATE=current_time_seconds,
                 LAST_MODIFIED=current_time_seconds,
@@ -285,7 +292,7 @@ class Utils:
             h1("Bookmarks")
 
             with dl().add(p()).add(dt()):
-                h3(
+                H3(
                     "Bookmarks",
                     ADD_DATE=current_time_seconds,
                     LAST_MODIFIED=current_time_seconds,
@@ -296,7 +303,7 @@ class Utils:
 
         self._build_bookmark_elements(_p)
 
-        return _document.render(pretty=False)
+        return _document.render()
 
     def write_bookmarks(self):
         """Write bookmarks to an HTML file.
