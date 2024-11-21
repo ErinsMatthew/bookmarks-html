@@ -2,8 +2,6 @@
 urls_file: urls.txt
 folder_separator: "|"
 subfolder_separator: ","
-bookmarks_key: bookmarks
-folders_key: folders
 bookmarks_html_file: bookmarks.html
 timeout: 60
 log_file: bookmark.log
@@ -44,21 +42,3 @@ headers:
     value: "?0"
   - name: sec-ch-ua-platform
     value: "macOS"
-html_front_matter: >
-  <!DOCTYPE NETSCAPE-Bookmark-file-1>
-  <!-- This is an automatically generated file.
-       It will be read and overwritten.
-       DO NOT EDIT! -->
-  <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
-  <TITLE>Bookmarks</TITLE>
-  <H1>Bookmarks</H1>
-  <DL><p>
-      <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Bookmarks</H3>
-      <DL><p>
-html_end_matter: >
-  </p></DL>
-  </p></DL><p>
-start_folder_front_matter: "<DT><H3>"
-start_folder_end_matter: "</H3>\n<DL><p>"
-end_folder_front_matter: "</DL><p>"
-end_folder_end_matter: ""

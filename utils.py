@@ -10,10 +10,18 @@ import requests
 import yaml
 
 from bs4 import BeautifulSoup
-from dominate.tags import a, dt
+
+from dominate import document
+from dominate.util import raw
+from dominate.tags import a, dt, dl, p, h1, h3, meta
 
 
 logger = logging.getLogger(__name__)
+
+current_time_seconds = int(time.time())
+
+BOOKMARKS_KEY = "bookmarks"
+FOLDERS_KEY = "folders"
 
 
 class BookmarkInfo:
@@ -50,32 +58,33 @@ class BookmarkInfo:
     def __ge__(self, other):
         return self.folders >= other.folders and self.url >= other.url
 
-    def html(self) -> str:
+    def html(self):
         """Return HTML representation of bookmark."""
 
         _dt = dt()
-        _a = a(self.title, href=self.url)
+        _a = a(
+            self.title,
+            href=self.url,
+            ADD_DATE=current_time_seconds,
+            LAST_MODIFIED=current_time_seconds,
+        )
 
         if self.favicon is not None:
             _a["icon"] = self.favicon
 
         _dt.add(_a)
 
-        bookmark_html = _dt.render(pretty=False)
-
-        logger.debug("bookmark_html = %s", bookmark_html)
-
-        return bookmark_html
+        return _dt
 
 
 class Config:
     """Manage configuration."""
 
-    values = None
+    _values = None
 
     def __init__(self, file):
         with open(file, "r", encoding="utf-8") as f:
-            self.values = yaml.safe_load(f)
+            self._values = yaml.safe_load(f)
 
             f.close()
 
@@ -84,8 +93,8 @@ class Config:
 
         value = None
 
-        if self.values is not None:
-            value = self.values[key]
+        if self._values is not None:
+            value = self._values[key]
 
         if value is None:
             value = default
@@ -96,9 +105,9 @@ class Config:
 class Utils:
     """Utility methods for creating bookmarks HTML."""
 
-    config = None
+    _config = None
 
-    sleep_duration = 0
+    _sleep_duration = 0
     random_sleep = True
     default_headers = None
     request_timeout = 60
@@ -106,55 +115,39 @@ class Utils:
     read_favicon = False
     folder_separator = None
     subfolder_separator = None
-    bookmarks_key = "bookmarks"
-    folder_key = "folders"
 
     def __init__(self, config_file):
-        self.config = Config(config_file)
+        self._config = Config(config_file)
 
         logging.basicConfig(
-            filename=self.config.get("log_file", "bookmark.log"),
+            filename=self._config.get("log_file", "bookmark.log"),
             encoding="utf-8",
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            level=self.config.get("log_level", logging.DEBUG),
+            level=self._config.get("log_level", logging.DEBUG),
         )
 
-        logger.debug("config = %s", self.config)
+        logger.debug("config = %s", self._config)
 
-        self.folder_separator = self.config.get("folder_separator", "|")
-        self.subfolder_separator = self.config.get("subfolder_separator", ",")
+        self.folder_separator = self._config.get("folder_separator", "|")
+        self.subfolder_separator = self._config.get("subfolder_separator", ",")
 
-        self.sleep_duration = int(self.config.get("sleep", 0))
-        self.random_sleep = bool(self.config.get("random_sleep", True))
+        self._sleep_duration = int(self._config.get("sleep", 0))
+        self.random_sleep = bool(self._config.get("random_sleep", True))
 
         self.default_headers = {
-            header["name"]: header["value"] for header in self.config.get("headers")
+            header["name"]: header["value"] for header in self._config.get("headers")
         }
 
-        self.request_timeout = int(self.config.get("timeout", 60))
+        self.request_timeout = int(self._config.get("timeout", 60))
 
-        self.rewrite_url = bool(self.config.get("rewrite_url", True))
+        self.rewrite_url = bool(self._config.get("rewrite_url", True))
 
-        self.read_favicon = bool(self.config.get("favicon", False))
+        self.read_favicon = bool(self._config.get("favicon", False))
 
-        self.bookmarks_key = self.config.get("bookmarks_key", "bookmarks")
-        self.folders_key = self.config.get("folders_key", "folders")
-
-        self.start_folder_front_matter = self.config.get(
-            "start_folder_front_matter", "<DT><H3>"
-        )
-        self.start_folder_end_matter = self.config.get(
-            "start_folder_end_matter", "</H3>\n<DL><p>"
-        )
-        self.end_folder_front_matter = self.config.get(
-            "end_folder_front_matter", "</DL><p>"
-        )
-        self.end_folder_end_matter = self.config.get("end_folder_end_matter", "")
-
-    def get_urls(self) -> list[str]:
+    def _get_urls(self) -> list[str]:
         """Get list of URLs from file."""
 
-        urls_file = self.config.get("urls_file", "urls.txt")
+        urls_file = self._config.get("urls_file", "urls.txt")
 
         logger.debug("Opening '%s'", urls_file)
 
@@ -167,7 +160,7 @@ class Utils:
 
         return urls
 
-    def build_bookmarks_dict(self, bookmarks: list[BookmarkInfo]) -> dict:
+    def _build_bookmarks_dict(self) -> dict:
         """Create nested dictionary of bookmarks by folder.
 
         {
@@ -183,16 +176,18 @@ class Utils:
         }
         """
 
-        bookmarks_dict = {self.bookmarks_key: [], self.folder_key: {}}
+        bookmarks_dict = {BOOKMARKS_KEY: [], FOLDERS_KEY: {}}
+
+        bookmarks = self._get_bookmarks_list()
 
         for bookmark_info in bookmarks:
             folders = bookmark_info.folders
 
             logger.debug("folders = %s", folders)
 
-            bookmarks_list = bookmarks_dict[self.bookmarks_key]
+            bookmarks_list = bookmarks_dict[BOOKMARKS_KEY]
 
-            d = bookmarks_dict[self.folder_key]
+            d = bookmarks_dict[FOLDERS_KEY]
 
             for folder in folders:
                 logger.debug("folder = %s", folder)
@@ -200,13 +195,13 @@ class Utils:
                 if folder not in d:
                     logger.debug("Creating object for folder %s", folder)
 
-                    d[folder] = {self.bookmarks_key: [], self.folder_key: {}}
+                    d[folder] = {BOOKMARKS_KEY: [], FOLDERS_KEY: {}}
 
-                bookmarks_list = d[folder][self.bookmarks_key]
+                bookmarks_list = d[folder][BOOKMARKS_KEY]
 
                 logger.debug("bookmarks_list = %s", bookmarks_list)
 
-                d = d[folder][self.folder_key]
+                d = d[folder][FOLDERS_KEY]
 
             bookmarks_list.append(bookmark_info)
 
@@ -214,73 +209,113 @@ class Utils:
 
         return bookmarks_dict
 
-    def build_folder_bookmark_lines(self, folder: str, bookmarks_dict: dict) -> str:
+    def _build_folder_bookmark_elements(self, folder: str, bookmarks_dict: dict):
         """Build list of bookmarks for a folder from bookmarks_dict."""
 
-        folder_lines = []
+        folder_element = dt()
 
-        # write folder front matter
-        folder_lines.append(
-            f"{self.start_folder_front_matter}{folder}{self.start_folder_end_matter}"
+        folder_element.add(
+            h3(
+                folder,
+                ADD_DATE=current_time_seconds,
+                LAST_MODIFIED=current_time_seconds,
+            )
         )
 
+        _p = folder_element.add(dl()).add(p())
+
         # process sub-folders
-        for subfolder in bookmarks_dict[self.folder_key][folder][self.folder_key]:
-            folder_lines.append(
-                self.build_folder_bookmark_lines(
-                    subfolder, bookmarks_dict[self.folder_key][folder]
+        for subfolder in bookmarks_dict[FOLDERS_KEY][folder][FOLDERS_KEY]:
+            _p.add(
+                self._build_folder_bookmark_elements(
+                    subfolder, bookmarks_dict[FOLDERS_KEY][folder]
                 )
             )
 
         # write folder bookmarks
-        for bookmark in bookmarks_dict[self.folder_key][folder][self.bookmarks_key]:
-            folder_lines.append(bookmark.html())
+        for bookmark in bookmarks_dict[FOLDERS_KEY][folder][BOOKMARKS_KEY]:
+            _p.add(bookmark.html())
 
-        # write folder end matter
-        folder_lines.append(
-            f"{self.end_folder_front_matter}{self.end_folder_end_matter}"
-        )
+        return folder_element
 
-        return "".join(folder_lines)
-
-    def build_bookmark_lines(self, bookmarks: list[BookmarkInfo]) -> list[str]:
+    def _build_bookmark_elements(self, parent):
         """Build list of bookmark lines to output."""
 
-        bookmark_lines = []
-        bookmarks_dict = self.build_bookmarks_dict(bookmarks)
+        bookmarks_dict = self._build_bookmarks_dict()
 
-        for folder in bookmarks_dict[self.folder_key]:
+        for folder in bookmarks_dict[FOLDERS_KEY]:
             logger.debug("folder = %s", folder)
 
-            bookmark_lines.append(
-                self.build_folder_bookmark_lines(folder, bookmarks_dict)
-            )
+            parent.add(self._build_folder_bookmark_elements(folder, bookmarks_dict))
 
-        for bookmark in bookmarks_dict[self.bookmarks_key]:
-            bookmark_lines.append(bookmark.html())
+        for bookmark in bookmarks_dict[BOOKMARKS_KEY]:
+            parent.add(bookmark.html())
 
-        return bookmark_lines
+        return parent
 
-    def write_bookmarks(self, bookmarks: list[BookmarkInfo]):
-        """Write list to bookmarks HTML file."""
+    def _get_bookmarks_list(self) -> list[BookmarkInfo]:
+        """Get list of bookmarks."""
 
-        if self.config.get("sort", False):
+        # read list of URLs in Folder,Subfolder...|URL format
+        urls = self._get_urls()
+
+        logger.debug("Read %d URLs.", len(urls))
+
+        bookmarks = [self._get_bookmark_info(url) for url in urls]
+
+        if self._config.get("sort", False):
             bookmarks.sort()
 
-        bookmarks_file = self.config.get("bookmarks_html_file", "bookmarks.html")
+        return bookmarks
+
+    def _build_bookmarks_file(self):
+        _document = document(
+            title="Bookmarks", doctype="<!DOCTYPE NETSCAPE-Bookmark-file-1>"
+        )
+
+        with _document.head:
+            # raw(
+            #     """<!-- This is an automatically generated file.
+            #             It will be read and overwritten.
+            #             DO NOT EDIT! -->"""
+            # )
+            meta(http_equiv="Content-Type", content="text/html; charset=UTF-8")
+
+        with _document:
+            h1("Bookmarks")
+
+            with dl().add(p()).add(dt()):
+                h3(
+                    "Bookmarks",
+                    ADD_DATE=current_time_seconds,
+                    LAST_MODIFIED=current_time_seconds,
+                    PERSONAL_TOOLBAR_FOLDER="true",
+                )
+
+                _p = dl().add(p())
+
+        self._build_bookmark_elements(_p)
+
+        return _document.render(pretty=False)
+
+    def write_bookmarks(self):
+        """Write bookmarks to an HTML file.
+
+        This method will convert URLs listed in a text file into a HTML format
+        per the `documentation
+        <https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa753582(v=vs.85)>`_.
+        """
+
+        bookmarks_file = self._config.get("bookmarks_html_file", "bookmarks.html")
 
         logger.debug("Writing '%s'", bookmarks_file)
 
         with open(bookmarks_file, "w", encoding="utf-8") as f:
-            f.write(self.config.get("html_front_matter"))
-
-            f.writelines(self.build_bookmark_lines(bookmarks))
-
-            f.write(self.config.get("html_end_matter"))
+            f.write(self._build_bookmarks_file())
 
             f.close()
 
-    def get_contents(self, url: str) -> requests.Response:
+    def _get_contents(self, url: str) -> requests.Response:
         """Get binary contents of file from URL."""
 
         with requests.Session() as s:
@@ -296,10 +331,10 @@ class Utils:
 
         return response
 
-    def get_html(self, url: str) -> BookmarkInfo:
+    def _get_html(self, url: str) -> BookmarkInfo:
         """Get HTML for a given URL."""
 
-        response = self.get_contents(url)
+        response = self._get_contents(url)
 
         # update response URL if redirected
         if url != response.url and self.rewrite_url:
@@ -309,7 +344,7 @@ class Utils:
 
         return BookmarkInfo(url, response.content)
 
-    def determine_mime_type(self, favicon_url: str) -> str:
+    def _determine_mime_type(self, favicon_url: str) -> str:
         """Determine MIME type from URL."""
 
         # try based on file name
@@ -322,18 +357,22 @@ class Utils:
 
         return mime_type
 
-    def use_this_favicon(self, icon) -> bool:
+    def _use_this_favicon(self, icon) -> bool:
         """Determine whether to use this favicon or not."""
 
         # TODO: Determine if we should use this one or not.
-        # If there are multiple <link rel="icon">s, the browser uses their media, type, and sizes attributes to select the most appropriate icon. If several icons are equally appropriate, the last one is used.
+        #
+        # If there are multiple <link rel="icon">s, the browser uses their media, type,
+        # and sizes attributes to select the most appropriate icon. If several icons are
+        # equally appropriate, the last one is used.
+        #
         # favicon_url = icon.get("href")
         # favicon_type = icon.get("type")
         # favicon_sizes = icon.get("sizes")
 
         return True
 
-    def parse_favicon_data(self, soup: BeautifulSoup) -> str:
+    def _parse_favicon_data(self, soup: BeautifulSoup) -> str:
         """Get favicon data from links in page HTML."""
 
         favicon_links = soup.find_all("link", rel="icon")
@@ -344,7 +383,7 @@ class Utils:
 
         if favicon_links is not None:
             for icon in favicon_links:
-                if not self.use_this_favicon(icon):
+                if not self._use_this_favicon(icon):
                     continue
 
                 favicon_url = icon.get("href")
@@ -353,11 +392,11 @@ class Utils:
                 if favicon_type is not None:
                     mime_type = favicon_type
                 else:
-                    mime_type = self.determine_mime_type(favicon_url)
+                    mime_type = self._determine_mime_type(favicon_url)
 
                 logger.debug("mime_type = %s", mime_type)
 
-                favicon_contents = self.get_contents(favicon_url)
+                favicon_contents = self._get_contents(favicon_url)
 
                 if favicon_contents is not None:
                     encoded_bytes = base64.b64encode(favicon_contents.content)
@@ -367,17 +406,17 @@ class Utils:
                     # data:<mime-type>;base64,<base64-encoded-data>
                     favicon_data = f"data:{mime_type};base64,{encoded_data}"
 
-                # stop loop once we processed one; refactor this!
+                # stop loop once we processed one; TODO: refactor this!
                 break
 
         return favicon_data
 
-    def parse_title(self, soup: BeautifulSoup, url: str) -> str:
+    def _parse_title(self, soup: BeautifulSoup, url: str) -> str:
         """Parse title information from HTML."""
 
         title = soup.select_one("title")
 
-        if title is not None:
+        if title is not None and title.string is not None:
             title = title.string.strip()
 
             logger.debug("title = %s", title)
@@ -386,7 +425,7 @@ class Utils:
 
         return str(title)
 
-    def get_folders(self, line: str) -> tuple[list[str], str]:
+    def _get_folders(self, line: str) -> tuple[list[str], str]:
         """Parse folders and URL from line."""
 
         folders = []
@@ -405,7 +444,7 @@ class Utils:
 
         return folders, url
 
-    def get_bookmark_info(self, line: str) -> BookmarkInfo:
+    def _get_bookmark_info(self, line: str) -> BookmarkInfo:
         """Get bookmark info from HTML."""
 
         logger.debug("Retrieving info for '%s'.", line)
@@ -413,17 +452,17 @@ class Utils:
         bookmark_info = None
         favicon_data = None
 
-        folders, url = self.get_folders(line)
+        folders, url = self._get_folders(line)
 
         try:
-            bookmark_info = self.get_html(url)
+            bookmark_info = self._get_html(url)
 
             soup = BeautifulSoup(bookmark_info.content, "html.parser")
 
-            title = self.parse_title(soup, url)
+            title = self._parse_title(soup, url)
 
             if self.read_favicon:
-                favicon_data = self.parse_favicon_data(soup)
+                favicon_data = self._parse_favicon_data(soup)
         except requests.exceptions.RequestException as ex:
             logger.error("Error retrieving HTML: %s", ex)
 
@@ -444,17 +483,17 @@ class Utils:
         bookmark_info.favicon = favicon_data
         bookmark_info.folders = folders
 
-        self.sleep()
+        self._sleep()
 
         return bookmark_info
 
-    def sleep(self):
+    def _sleep(self):
         """Sleep for configured number of milliseconds."""
 
-        if self.sleep_duration > 0:
+        if self._sleep_duration > 0:
             if self.random_sleep:
                 sleep_multiplier = random.random()
             else:
                 sleep_multiplier = float(1)
 
-            time.sleep((self.sleep_duration / 1000) * sleep_multiplier)
+            time.sleep((self._sleep_duration / 1000) * sleep_multiplier)

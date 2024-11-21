@@ -48,8 +48,6 @@ Configuration is stored in a file named [`config.yml`](config.yml).
 | urls_file | urls.txt | The path to a text file containing bookmark URLs. One URL per line. File should be encoded as UTF-8 |
 | folder_separator | \| | Value to use to separate folder names. |
 | subfolder_separator | , | Value to use to separate subfolder names. |
-| bookmarks_key | bookmarks | Value to use for bookmarks list internally. |
-| folders_key | folders | Value to use for folders dictionary internally. |
 | bookmarks_html_file | bookmarks.html | The path to a text file which this script will write bookmarks in HTML format. Will be encoded as UTF-8. |
 | timeout | 60 | Number of seconds before the Web request times out. |
 | log_file | bookmark.log | The path to a log file. Will be encoded as UTF-8. |
@@ -60,9 +58,3 @@ Configuration is stored in a file named [`config.yml`](config.yml).
 | sleep | 0 | Number of milliseconds to sleep between retrieving information about each bookmark. |
 | random_sleep | true | Whether to randomize the sleep value. Multiplies the `sleep` value by a random number between 0 and 1. Valid values include `true` or `false`. |
 | headers | See YAML. | List of `name` and `value` pairs for headers to send with each request. |
-| html_front_matter | See YAML. | HTML string to use as front matter for the bookmark HTML file. |
-| html_end_matter | See YAML. | HTML string to use as end matter for the bookmark HTML file. |
-| start_folder_front_matter | See YAML. | HTML string to use as start of front matter for folders for the bookmark HTML file. |
-| start_folder_end_matter | See YAML. | HTML string to use as end of front matter for folders for the bookmark HTML file. |
-| end_folder_front_matter | See YAML. | HTML string to use as start of end matter for folders for the bookmark HTML file. |
-| end_folder_end_matter | See YAML. | HTML string to use as end of end matter for folders for the bookmark HTML file. |
