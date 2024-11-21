@@ -58,3 +58,9 @@ Configuration is stored in a file named [`config.yml`](config.yml).
 | sleep | 0 | Number of milliseconds to sleep between retrieving information about each bookmark. |
 | random_sleep | true | Whether to randomize the sleep value. Multiplies the `sleep` value by a random number between 0 and 1. Valid values include `true` or `false`. |
 | headers | See YAML. | List of `name` and `value` pairs for headers to send with each request. |
+
+# Future Enhancements
+
+- [ ] Improved sorting.
+- [ ] Improved bot avoidance handling.
+- [ ] Finish favicon handling.
